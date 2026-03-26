@@ -1,0 +1,9 @@
+{
+  "watch": ["index.js", "routes", "models", "migrations"],
+  "ignore": ["node_modules", "*.json"],
+  "ext": "js",
+  "delay": 500,
+  "env": {
+    "NODE_ENV": "development"
+  }
+}
