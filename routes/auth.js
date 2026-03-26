@@ -1,6 +1,5 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { User } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
@@ -22,10 +21,6 @@ function signToken(user) {
     process.env.JWT_SECRET || 'dev-only-jwt-secret-change-me',
     { expiresIn: '7d' }
   );
-}
-
-function hashResetToken(token) {
-  return crypto.createHash('sha256').update(token).digest('hex');
 }
 
 router.post('/register', async (req, res) => {
@@ -109,39 +104,19 @@ router.get('/me', authenticateToken, async (req, res) => {
 
 router.post('/forgot-password', async (req, res) => {
   try {
-    const normalizedEmail = normalizeEmail(req.body?.email);
-
-    // Always return the same response to avoid account enumeration.
-    const genericResponse = {
-      message: 'If that email exists, a password reset link has been sent.'
-    };
+    const { email } = req.body || {};
+    const normalizedEmail = normalizeEmail(email);
 
     if (!normalizedEmail || !isValidEmail(normalizedEmail)) {
-      return res.json(genericResponse);
+      return res.status(400).json({ error: 'A valid email address is required' });
     }
 
-    const user = await User.getByEmailWithSecret(normalizedEmail);
-    if (!user || !user.password_hash) {
-      return res.json(genericResponse);
+    const user = await User.getByEmail(normalizedEmail);
+    if (!user) {
+      return res.status(404).json({ error: 'No account found with that email address.' });
     }
 
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    const tokenHash = hashResetToken(resetToken);
-    const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
-
-    await User.setPasswordResetToken(user.id, tokenHash, expiresAt);
-
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    const resetUrl = `${frontendUrl}/?resetToken=${resetToken}`;
-
-    // Replace this with an email provider integration in production.
-    console.log(`Password reset requested for ${normalizedEmail}: ${resetUrl}`);
-
-    if (process.env.NODE_ENV !== 'production') {
-      return res.json({ ...genericResponse, resetUrl });
-    }
-
-    return res.json(genericResponse);
+    return res.json({ message: 'Email verified.' });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
@@ -149,32 +124,72 @@ router.post('/forgot-password', async (req, res) => {
 
 router.post('/reset-password', async (req, res) => {
   try {
-    const { token, password, confirmPassword } = req.body || {};
+    const { email, newPassword, confirmPassword } = req.body || {};
+    const normalizedEmail = normalizeEmail(email);
 
-    if (!token || !password) {
-      return res.status(400).json({ error: 'Token and password are required' });
+    if (!normalizedEmail || !newPassword || !confirmPassword) {
+      return res.status(400).json({ error: 'Email, new password, and confirmation are required' });
     }
 
-    if (confirmPassword !== undefined && password !== confirmPassword) {
+    if (newPassword !== confirmPassword) {
       return res.status(400).json({ error: 'Passwords do not match' });
     }
 
-    const passwordIssues = validatePassword(password);
+    const passwordIssues = validatePassword(newPassword);
     if (passwordIssues.length > 0) {
       return res.status(400).json({ error: 'Password validation failed', issues: passwordIssues });
     }
 
-    const tokenHash = hashResetToken(token);
-    const user = await User.getByResetTokenHash(tokenHash);
-
-    if (!user || !user.reset_token_expires_at || new Date(user.reset_token_expires_at) < new Date()) {
-      return res.status(400).json({ error: 'Reset token is invalid or expired' });
+    const user = await User.getByEmail(normalizedEmail);
+    if (!user) {
+      return res.status(404).json({ error: 'No account found with that email address.' });
     }
 
-    const passwordHash = await bcrypt.hash(password, 12);
-    await User.updatePasswordHash(user.id, passwordHash);
+    const newPasswordHash = await bcrypt.hash(newPassword, 12);
+    await User.updatePasswordHash(user.id, newPasswordHash);
 
-    return res.json({ message: 'Password has been reset successfully' });
+    return res.json({ message: 'Password reset successfully.' });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/change-password', authenticateToken, async (req, res) => {
+  try {
+    const { currentPassword, newPassword, confirmPassword } = req.body || {};
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      return res.status(400).json({ error: 'Current password, new password, and confirmation are required' });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ error: 'New passwords do not match' });
+    }
+
+    const passwordIssues = validatePassword(newPassword);
+    if (passwordIssues.length > 0) {
+      return res.status(400).json({ error: 'Password validation failed', issues: passwordIssues });
+    }
+
+    const userWithSecret = await User.getByIdWithSecret(req.user.userId);
+    if (!userWithSecret || !userWithSecret.password_hash) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const currentMatches = await bcrypt.compare(currentPassword, userWithSecret.password_hash);
+    if (!currentMatches) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    const sameAsCurrent = await bcrypt.compare(newPassword, userWithSecret.password_hash);
+    if (sameAsCurrent) {
+      return res.status(400).json({ error: 'New password must be different from current password' });
+    }
+
+    const newPasswordHash = await bcrypt.hash(newPassword, 12);
+    await User.updatePasswordHash(req.user.userId, newPasswordHash);
+
+    return res.json({ message: 'Password updated successfully' });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }

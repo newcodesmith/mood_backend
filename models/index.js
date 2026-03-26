@@ -38,8 +38,8 @@ const User = {
     return db('users').where('email', email).first();
   },
 
-  getByResetTokenHash: async (tokenHash) => {
-    return db('users').where('reset_token_hash', tokenHash).first();
+  getByIdWithSecret: async (id) => {
+    return db('users').where('id', id).first();
   },
   
   create: async (userData) => {
@@ -53,25 +53,9 @@ const User = {
     return db('users').select(safeUserColumns).where('id', id).first();
   },
 
-  setPasswordResetToken: async (id, tokenHash, expiresAt) => {
-    await db('users').where('id', id).update({
-      reset_token_hash: tokenHash,
-      reset_token_expires_at: expiresAt
-    });
-  },
-
-  clearPasswordResetToken: async (id) => {
-    await db('users').where('id', id).update({
-      reset_token_hash: null,
-      reset_token_expires_at: null
-    });
-  },
-
   updatePasswordHash: async (id, passwordHash) => {
     await db('users').where('id', id).update({
-      password_hash: passwordHash,
-      reset_token_hash: null,
-      reset_token_expires_at: null
+      password_hash: passwordHash
     });
   },
   
