@@ -18,7 +18,9 @@ router.get('/user/:userId', requireSelf, async (req, res) => {
 // Get today's entry for a user
 router.get('/user/:userId/today', requireSelf, async (req, res) => {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const requestedDate = typeof req.query.date === 'string' ? req.query.date : '';
+    const isValidDate = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate);
+    const today = isValidDate ? requestedDate : new Date().toISOString().split('T')[0];
     const entry = await MoodEntry.getByDate(req.params.userId, today);
     res.json(entry || null);
   } catch (error) {
