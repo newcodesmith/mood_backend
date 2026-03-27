@@ -46,6 +46,22 @@ router.get('/user/:userId/recent', requireSelf, async (req, res) => {
   }
 });
 
+// Get entry for a specific date
+router.get('/user/:userId/by-date', requireSelf, async (req, res) => {
+  try {
+    const requestedDate = typeof req.query.date === 'string' ? req.query.date : '';
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(requestedDate)) {
+      return res.status(400).json({ error: 'A valid date is required' });
+    }
+
+    const entry = await MoodEntry.getByDate(req.params.userId, requestedDate);
+    res.json(entry || null);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get entry by ID
 router.get('/:id', async (req, res) => {
   try {
@@ -59,13 +75,17 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create mood entry
-router.post('/', requireSelf, async (req, res) => {
+router.post('/', async (req, res) => {
   try {
-    const { userId, date, mood, feelings, reflection, sleep } = req.body;
+    const { date, mood, feelings, reflection, sleep } = req.body;
+    const userId = req.user.userId;
     
     // Validation
-    if (!userId || !date || !mood || !feelings) {
+    if (!date || !mood || !feelings) {
       return res.status(400).json({ error: 'Missing required fields' });
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return res.status(400).json({ error: 'Date must be in YYYY-MM-DD format' });
     }
     if (mood < 1 || mood > 10) {
       return res.status(400).json({ error: 'Mood must be between 1 and 10' });
@@ -75,6 +95,11 @@ router.post('/', requireSelf, async (req, res) => {
     }
     if (!Array.isArray(feelings) || feelings.length === 0) {
       return res.status(400).json({ error: 'At least one feeling is required' });
+    }
+
+    const existingEntry = await MoodEntry.getByDate(userId, date);
+    if (existingEntry) {
+      return res.status(409).json({ error: 'You already have an entry for this date' });
     }
     
     const entry = await MoodEntry.create({
@@ -88,6 +113,9 @@ router.post('/', requireSelf, async (req, res) => {
     
     res.status(201).json(entry);
   } catch (error) {
+    if (error && error.code === '23505') {
+      return res.status(409).json({ error: 'You already have an entry for this date' });
+    }
     res.status(500).json({ error: error.message });
   }
 });
@@ -140,15 +168,28 @@ router.get('/user/:userId/comparison', requireSelf, async (req, res) => {
   try {
     const current = await MoodEntry.getAverageCurrentWeek(req.params.userId);
     const previous = await MoodEntry.getAveragePreviousWeek(req.params.userId);
-    
-    const moodChange = ((current.mood - previous.mood) / (previous.mood || 1) * 100).toFixed(1);
-    const sleepChange = ((current.sleep - previous.sleep) / (previous.sleep || 1) * 100).toFixed(1);
+
+    const currentMood = Number(current.mood) || 0;
+    const previousMood = Number(previous.mood) || 0;
+    const currentSleep = Number(current.sleep) || 0;
+    const previousSleep = Number(previous.sleep) || 0;
+
+    const calculatePercentChange = (currentValue, previousValue, hasBaseline) => {
+      if (!hasBaseline || previousValue === 0) {
+        return 0;
+      }
+
+      return Number((((currentValue - previousValue) / previousValue) * 100).toFixed(1));
+    };
+
+    const moodChange = calculatePercentChange(currentMood, previousMood, Number(previous.entryCount) > 0);
+    const sleepChange = calculatePercentChange(currentSleep, previousSleep, Number(previous.sleepEntryCount) > 0);
     
     res.json({
       current,
       previous,
-      moodChange: parseFloat(moodChange),
-      sleepChange: parseFloat(sleepChange)
+      moodChange,
+      sleepChange
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

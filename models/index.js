@@ -103,12 +103,20 @@ const MoodEntry = {
       .orderBy('date', 'desc')
       .limit(5);
     
-    if (!results.length) return { mood: 0, sleep: 0 };
+    if (!results.length) return { mood: 0, sleep: 0, entryCount: 0, sleepEntryCount: 0 };
     
     const moodAvg = results.reduce((sum, r) => sum + r.mood, 0) / results.length;
-    const sleepAvg = results.reduce((sum, r) => sum + (r.sleep || 0), 0) / results.length;
+    const sleepResults = results.filter((r) => r.sleep !== null && r.sleep !== undefined);
+    const sleepAvg = sleepResults.length
+      ? sleepResults.reduce((sum, r) => sum + Number(r.sleep), 0) / sleepResults.length
+      : 0;
     
-    return { mood: moodAvg.toFixed(2), sleep: sleepAvg.toFixed(2) };
+    return {
+      mood: moodAvg.toFixed(2),
+      sleep: sleepAvg.toFixed(2),
+      entryCount: results.length,
+      sleepEntryCount: sleepResults.length
+    };
   },
   
   getAveragePreviousWeek: async (userId) => {
@@ -118,12 +126,20 @@ const MoodEntry = {
       .offset(5)
       .limit(5);
     
-    if (!results.length) return { mood: 0, sleep: 0 };
+    if (!results.length) return { mood: 0, sleep: 0, entryCount: 0, sleepEntryCount: 0 };
     
     const moodAvg = results.reduce((sum, r) => sum + r.mood, 0) / results.length;
-    const sleepAvg = results.reduce((sum, r) => sum + (r.sleep || 0), 0) / results.length;
+    const sleepResults = results.filter((r) => r.sleep !== null && r.sleep !== undefined);
+    const sleepAvg = sleepResults.length
+      ? sleepResults.reduce((sum, r) => sum + Number(r.sleep), 0) / sleepResults.length
+      : 0;
     
-    return { mood: moodAvg.toFixed(2), sleep: sleepAvg.toFixed(2) };
+    return {
+      mood: moodAvg.toFixed(2),
+      sleep: sleepAvg.toFixed(2),
+      entryCount: results.length,
+      sleepEntryCount: sleepResults.length
+    };
   }
 };
 
