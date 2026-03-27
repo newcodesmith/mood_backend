@@ -6,17 +6,17 @@ const baseSafeUserColumns = ['id', 'name', 'email', 'avatar', 'created_at', 'upd
 let hasThemePreferenceColumnCache;
 
 async function hasThemePreferenceColumn() {
-  if (typeof hasThemePreferenceColumnCache === 'boolean') {
+  if (hasThemePreferenceColumnCache === true) {
     return hasThemePreferenceColumnCache;
   }
 
   try {
-    hasThemePreferenceColumnCache = await db.schema.hasColumn('users', 'theme_preference');
+    const hasColumn = await db.schema.hasColumn('users', 'theme_preference');
+    hasThemePreferenceColumnCache = hasColumn ? true : undefined;
+    return hasColumn;
   } catch (error) {
-    hasThemePreferenceColumnCache = false;
+    return false;
   }
-
-  return hasThemePreferenceColumnCache;
 }
 
 async function getSafeUserColumns() {
