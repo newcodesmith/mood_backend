@@ -2,7 +2,42 @@ const knex = require('knex');
 const config = require('../knexfile');
 
 const db = knex(config[process.env.NODE_ENV || 'development']);
-const safeUserColumns = ['id', 'name', 'email', 'avatar', 'theme_preference', 'created_at', 'updated_at'];
+const baseSafeUserColumns = ['id', 'name', 'email', 'avatar', 'created_at', 'updated_at'];
+let hasThemePreferenceColumnCache;
+
+async function hasThemePreferenceColumn() {
+  if (typeof hasThemePreferenceColumnCache === 'boolean') {
+    return hasThemePreferenceColumnCache;
+  }
+
+  try {
+    hasThemePreferenceColumnCache = await db.schema.hasColumn('users', 'theme_preference');
+  } catch (error) {
+    hasThemePreferenceColumnCache = false;
+  }
+
+  return hasThemePreferenceColumnCache;
+}
+
+async function getSafeUserColumns() {
+  const safeUserColumns = [...baseSafeUserColumns];
+
+  if (await hasThemePreferenceColumn()) {
+    safeUserColumns.splice(4, 0, 'theme_preference');
+  }
+
+  return safeUserColumns;
+}
+
+async function sanitizeUserDataForSchema(userData) {
+  const sanitized = { ...userData };
+
+  if (!(await hasThemePreferenceColumn())) {
+    delete sanitized.theme_preference;
+  }
+
+  return sanitized;
+}
 
 function extractInsertedId(insertResult) {
   if (Array.isArray(insertResult)) {
@@ -23,14 +58,17 @@ function extractInsertedId(insertResult) {
 // User model
 const User = {
   getAll: async () => {
+    const safeUserColumns = await getSafeUserColumns();
     return db('users').select(safeUserColumns);
   },
   
   getById: async (id) => {
+    const safeUserColumns = await getSafeUserColumns();
     return db('users').select(safeUserColumns).where('id', id).first();
   },
 
   getByEmail: async (email) => {
+    const safeUserColumns = await getSafeUserColumns();
     return db('users').select(safeUserColumns).where('email', email).first();
   },
 
@@ -43,13 +81,17 @@ const User = {
   },
   
   create: async (userData) => {
-    const insertResult = await db('users').insert(userData).returning('id');
+    const safeUserColumns = await getSafeUserColumns();
+    const sanitizedUserData = await sanitizeUserDataForSchema(userData);
+    const insertResult = await db('users').insert(sanitizedUserData).returning('id');
     const id = extractInsertedId(insertResult);
     return db('users').select(safeUserColumns).where('id', id).first();
   },
   
   update: async (id, userData) => {
-    await db('users').where('id', id).update(userData);
+    const safeUserColumns = await getSafeUserColumns();
+    const sanitizedUserData = await sanitizeUserDataForSchema(userData);
+    await db('users').where('id', id).update(sanitizedUserData);
     return db('users').select(safeUserColumns).where('id', id).first();
   },
 
