@@ -20,8 +20,16 @@ router.get('/user/:userId/today', requireSelf, async (req, res) => {
   try {
     const requestedDate = typeof req.query.date === 'string' ? req.query.date : '';
     const isValidDate = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate);
-    const today = isValidDate ? requestedDate : new Date().toISOString().split('T')[0];
-    const entry = await MoodEntry.getByDate(req.params.userId, today);
+    const utcToday = new Date().toISOString().split('T')[0];
+    const primaryDate = isValidDate ? requestedDate : utcToday;
+
+    let entry = await MoodEntry.getByDate(req.params.userId, primaryDate);
+
+    // Transitional fallback for entries created with older UTC date logic.
+    if (!entry && isValidDate && requestedDate !== utcToday) {
+      entry = await MoodEntry.getByDate(req.params.userId, utcToday);
+    }
+
     res.json(entry || null);
   } catch (error) {
     res.status(500).json({ error: error.message });
