@@ -19,7 +19,9 @@ function authenticateToken(req, res, next) {
 
 function requireSelf(req, res, next) {
   const userId = Number(req.params.id || req.params.userId || req.body.userId);
-  if (!userId || userId !== req.user.userId) {
+  const authedUserId = Number(req.user && req.user.userId);
+
+  if (!userId || !authedUserId || userId !== authedUserId) {
     return res.status(403).json({ error: 'Forbidden' });
   }
 
