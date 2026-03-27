@@ -42,10 +42,19 @@ router.post('/', async (req, res) => {
 // Update user
 router.put('/:id', requireSelf, async (req, res) => {
   try {
-    const { name, avatar } = req.body;
+    const { name, avatar, themePreference, theme_preference } = req.body;
     if (!name) return res.status(400).json({ error: 'Name is required' });
+
+    const normalizedThemePreference = (themePreference || theme_preference || 'light').toString().toLowerCase();
+    if (!['light', 'dark'].includes(normalizedThemePreference)) {
+      return res.status(400).json({ error: 'Theme preference must be light or dark' });
+    }
     
-    const user = await User.update(req.params.id, { name, avatar });
+    const user = await User.update(req.params.id, {
+      name,
+      avatar,
+      theme_preference: normalizedThemePreference
+    });
     res.json(user);
   } catch (error) {
     res.status(500).json({ error: error.message });

@@ -2,7 +2,7 @@ const knex = require('knex');
 const config = require('../knexfile');
 
 const db = knex(config[process.env.NODE_ENV || 'development']);
-const safeUserColumns = ['id', 'name', 'email', 'avatar', 'created_at', 'updated_at'];
+const safeUserColumns = ['id', 'name', 'email', 'avatar', 'theme_preference', 'created_at', 'updated_at'];
 
 function extractInsertedId(insertResult) {
   if (Array.isArray(insertResult)) {
