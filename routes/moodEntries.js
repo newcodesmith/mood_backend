@@ -5,6 +5,8 @@ const { authenticateToken, requireSelf } = require('../middleware/auth');
 
 router.use(authenticateToken);
 
+const hasValue = (value) => value !== undefined && value !== null && value !== '';
+
 // Get all mood entries for a user
 router.get('/user/:userId', requireSelf, async (req, res) => {
   try {
@@ -77,7 +79,7 @@ router.get('/:id', async (req, res) => {
 // Create mood entry
 router.post('/', async (req, res) => {
   try {
-    const { date, mood, feelings, reflection, sleep } = req.body;
+    const { date, mood, feelings, reflection, sleep, water_oz, weight_lbs } = req.body;
     const userId = req.user.userId;
     
     // Validation
@@ -90,8 +92,14 @@ router.post('/', async (req, res) => {
     if (mood < 1 || mood > 10) {
       return res.status(400).json({ error: 'Mood must be between 1 and 10' });
     }
-    if (sleep && (sleep < 0 || sleep > 24)) {
+    if (hasValue(sleep) && (Number(sleep) < 0 || Number(sleep) > 24)) {
       return res.status(400).json({ error: 'Sleep must be between 0 and 24' });
+    }
+    if (hasValue(water_oz) && (Number(water_oz) < 0 || Number(water_oz) > 1000)) {
+      return res.status(400).json({ error: 'Water must be between 0 and 1000 oz' });
+    }
+    if (hasValue(weight_lbs) && (Number(weight_lbs) < 0 || Number(weight_lbs) > 1400)) {
+      return res.status(400).json({ error: 'Weight must be between 0 and 1400 lbs' });
     }
     if (!Array.isArray(feelings) || feelings.length === 0) {
       return res.status(400).json({ error: 'At least one feeling is required' });
@@ -108,7 +116,9 @@ router.post('/', async (req, res) => {
       mood,
       feelings: JSON.stringify(feelings),
       reflection,
-      sleep
+      sleep: hasValue(sleep) ? Number(sleep) : null,
+      water_oz: hasValue(water_oz) ? Number(water_oz) : null,
+      weight_lbs: hasValue(weight_lbs) ? Number(weight_lbs) : null
     });
     
     res.status(201).json(entry);
@@ -127,20 +137,28 @@ router.put('/:id', async (req, res) => {
     if (!existing) return res.status(404).json({ error: 'Entry not found' });
     if (existing.user_id !== req.user.userId) return res.status(403).json({ error: 'Forbidden' });
 
-    const { mood, feelings, reflection, sleep } = req.body;
+    const { mood, feelings, reflection, sleep, water_oz, weight_lbs } = req.body;
     
-    if (mood && (mood < 1 || mood > 10)) {
+    if (hasValue(mood) && (Number(mood) < 1 || Number(mood) > 10)) {
       return res.status(400).json({ error: 'Mood must be between 1 and 10' });
     }
-    if (sleep && (sleep < 0 || sleep > 24)) {
+    if (hasValue(sleep) && (Number(sleep) < 0 || Number(sleep) > 24)) {
       return res.status(400).json({ error: 'Sleep must be between 0 and 24' });
+    }
+    if (hasValue(water_oz) && (Number(water_oz) < 0 || Number(water_oz) > 1000)) {
+      return res.status(400).json({ error: 'Water must be between 0 and 1000 oz' });
+    }
+    if (hasValue(weight_lbs) && (Number(weight_lbs) < 0 || Number(weight_lbs) > 1400)) {
+      return res.status(400).json({ error: 'Weight must be between 0 and 1400 lbs' });
     }
     
     const updateData = {};
-    if (mood) updateData.mood = mood;
-    if (feelings) updateData.feelings = JSON.stringify(feelings);
+    if (hasValue(mood)) updateData.mood = Number(mood);
+    if (hasValue(feelings)) updateData.feelings = JSON.stringify(feelings);
     if (reflection !== undefined) updateData.reflection = reflection;
-    if (sleep !== undefined) updateData.sleep = sleep;
+    if (sleep !== undefined) updateData.sleep = hasValue(sleep) ? Number(sleep) : null;
+    if (water_oz !== undefined) updateData.water_oz = hasValue(water_oz) ? Number(water_oz) : null;
+    if (weight_lbs !== undefined) updateData.weight_lbs = hasValue(weight_lbs) ? Number(weight_lbs) : null;
     
     const entry = await MoodEntry.update(req.params.id, updateData);
     res.json(entry);
