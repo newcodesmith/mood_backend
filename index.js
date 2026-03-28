@@ -18,6 +18,15 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/mood-entries', moodEntryRoutes);
 
+// Friendly root route for local development.
+app.get('/', (req, res) => {
+  res.status(200).json({
+    message: 'Health Tracker API is running.',
+    frontend: 'http://localhost:3000',
+    health: '/api/health'
+  });
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK' });
@@ -25,5 +34,5 @@ app.get('/api/health', (req, res) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`Mood Tracker API running on http://localhost:${PORT}`);
+  console.log(`Health Tracker API running on http://localhost:${PORT}`);
 });

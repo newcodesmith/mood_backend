@@ -4,26 +4,64 @@ const config = require('../knexfile');
 const db = knex(config[process.env.NODE_ENV || 'development']);
 const baseSafeUserColumns = ['id', 'name', 'email', 'avatar', 'created_at', 'updated_at'];
 let hasThemePreferenceColumnCache;
+const optionalUserColumnsCache = {};
 
-async function hasThemePreferenceColumn() {
-  if (hasThemePreferenceColumnCache === true) {
-    return hasThemePreferenceColumnCache;
+const OPTIONAL_USER_COLUMNS = [
+  'theme_preference',
+  'breathing_inhale_seconds',
+  'breathing_hold_seconds',
+  'breathing_exhale_seconds',
+  'breathing_audio_enabled',
+  'breathing_audio_level',
+  'breathing_color_palette'
+];
+
+const OPTIONAL_SAFE_USER_COLUMNS = [
+  'breathing_inhale_seconds',
+  'breathing_hold_seconds',
+  'breathing_exhale_seconds',
+  'breathing_audio_enabled',
+  'breathing_audio_level',
+  'breathing_color_palette'
+];
+
+async function hasOptionalUserColumn(columnName) {
+  if (optionalUserColumnsCache[columnName] === true) {
+    return true;
   }
 
   try {
-    const hasColumn = await db.schema.hasColumn('users', 'theme_preference');
-    hasThemePreferenceColumnCache = hasColumn ? true : undefined;
+    const hasColumn = await db.schema.hasColumn('users', columnName);
+    optionalUserColumnsCache[columnName] = hasColumn ? true : undefined;
     return hasColumn;
   } catch (error) {
     return false;
   }
 }
 
+async function hasThemePreferenceColumn() {
+  if (hasThemePreferenceColumnCache !== undefined) {
+    return hasThemePreferenceColumnCache;
+  }
+
+  hasThemePreferenceColumnCache = await hasOptionalUserColumn('theme_preference');
+  return hasThemePreferenceColumnCache;
+}
+
 async function getSafeUserColumns() {
   const safeUserColumns = [...baseSafeUserColumns];
 
-  if (await hasThemePreferenceColumn()) {
+  const hasThemePreference = await hasThemePreferenceColumn();
+  if (hasThemePreference) {
     safeUserColumns.splice(4, 0, 'theme_preference');
+  }
+
+  let insertionIndex = hasThemePreference ? 5 : 4;
+  for (const columnName of OPTIONAL_SAFE_USER_COLUMNS) {
+    if (await hasOptionalUserColumn(columnName)) {
+      safeUserColumns.splice(insertionIndex, 0, columnName);
+      insertionIndex += 1;
+    }
   }
 
   return safeUserColumns;
@@ -32,8 +70,19 @@ async function getSafeUserColumns() {
 async function sanitizeUserDataForSchema(userData) {
   const sanitized = { ...userData };
 
-  if (!(await hasThemePreferenceColumn())) {
-    delete sanitized.theme_preference;
+  await Promise.all(
+    OPTIONAL_USER_COLUMNS.map(async (columnName) => {
+      if (!(await hasOptionalUserColumn(columnName))) {
+        delete sanitized[columnName];
+      }
+    })
+  );
+
+  if (Object.prototype.hasOwnProperty.call(sanitized, 'breathing_audio_level')) {
+    const numericLevel = Number(sanitized.breathing_audio_level);
+    sanitized.breathing_audio_level = Number.isFinite(numericLevel)
+      ? Number(numericLevel.toFixed(2))
+      : sanitized.breathing_audio_level;
   }
 
   return sanitized;
@@ -106,6 +155,36 @@ const User = {
   }
 };
 
+const BreathingProfile = {
+  getAllForUser: async (userId) => {
+    return db('breathing_profiles')
+      .where('user_id', userId)
+      .orderBy('created_at', 'desc');
+  },
+
+  getByIdForUser: async (userId, profileId) => {
+    return db('breathing_profiles')
+      .where({ user_id: userId, id: profileId })
+      .first();
+  },
+
+  create: async (profileData) => {
+    const insertResult = await db('breathing_profiles').insert(profileData).returning('id');
+    const id = extractInsertedId(insertResult);
+    return db('breathing_profiles').where('id', id).first();
+  },
+
+  updateForUser: async (userId, profileId, profileData) => {
+    await db('breathing_profiles')
+      .where({ user_id: userId, id: profileId })
+      .update(profileData);
+
+    return db('breathing_profiles')
+      .where({ user_id: userId, id: profileId })
+      .first();
+  }
+};
+
 // Mood Entry model
 const MoodEntry = {
   getAll: async (userId) => {
@@ -145,19 +224,44 @@ const MoodEntry = {
       .orderBy('date', 'desc')
       .limit(5);
     
-    if (!results.length) return { mood: 0, sleep: 0, entryCount: 0, sleepEntryCount: 0 };
+    if (!results.length) {
+      return {
+        mood: 0,
+        sleep: 0,
+        water_oz: 0,
+        weight_lbs: 0,
+        entryCount: 0,
+        sleepEntryCount: 0,
+        waterEntryCount: 0,
+        weightEntryCount: 0
+      };
+    }
     
     const moodAvg = results.reduce((sum, r) => sum + r.mood, 0) / results.length;
     const sleepResults = results.filter((r) => r.sleep !== null && r.sleep !== undefined);
     const sleepAvg = sleepResults.length
       ? sleepResults.reduce((sum, r) => sum + Number(r.sleep), 0) / sleepResults.length
       : 0;
+
+    const waterResults = results.filter((r) => r.water_oz !== null && r.water_oz !== undefined);
+    const waterAvg = waterResults.length
+      ? waterResults.reduce((sum, r) => sum + Number(r.water_oz), 0) / waterResults.length
+      : 0;
+
+    const weightResults = results.filter((r) => r.weight_lbs !== null && r.weight_lbs !== undefined);
+    const weightAvg = weightResults.length
+      ? weightResults.reduce((sum, r) => sum + Number(r.weight_lbs), 0) / weightResults.length
+      : 0;
     
     return {
       mood: moodAvg.toFixed(2),
       sleep: sleepAvg.toFixed(2),
+      water_oz: waterAvg.toFixed(2),
+      weight_lbs: weightAvg.toFixed(2),
       entryCount: results.length,
-      sleepEntryCount: sleepResults.length
+      sleepEntryCount: sleepResults.length,
+      waterEntryCount: waterResults.length,
+      weightEntryCount: weightResults.length
     };
   },
   
@@ -168,21 +272,46 @@ const MoodEntry = {
       .offset(5)
       .limit(5);
     
-    if (!results.length) return { mood: 0, sleep: 0, entryCount: 0, sleepEntryCount: 0 };
+    if (!results.length) {
+      return {
+        mood: 0,
+        sleep: 0,
+        water_oz: 0,
+        weight_lbs: 0,
+        entryCount: 0,
+        sleepEntryCount: 0,
+        waterEntryCount: 0,
+        weightEntryCount: 0
+      };
+    }
     
     const moodAvg = results.reduce((sum, r) => sum + r.mood, 0) / results.length;
     const sleepResults = results.filter((r) => r.sleep !== null && r.sleep !== undefined);
     const sleepAvg = sleepResults.length
       ? sleepResults.reduce((sum, r) => sum + Number(r.sleep), 0) / sleepResults.length
       : 0;
+
+    const waterResults = results.filter((r) => r.water_oz !== null && r.water_oz !== undefined);
+    const waterAvg = waterResults.length
+      ? waterResults.reduce((sum, r) => sum + Number(r.water_oz), 0) / waterResults.length
+      : 0;
+
+    const weightResults = results.filter((r) => r.weight_lbs !== null && r.weight_lbs !== undefined);
+    const weightAvg = weightResults.length
+      ? weightResults.reduce((sum, r) => sum + Number(r.weight_lbs), 0) / weightResults.length
+      : 0;
     
     return {
       mood: moodAvg.toFixed(2),
       sleep: sleepAvg.toFixed(2),
+      water_oz: waterAvg.toFixed(2),
+      weight_lbs: weightAvg.toFixed(2),
       entryCount: results.length,
-      sleepEntryCount: sleepResults.length
+      sleepEntryCount: sleepResults.length,
+      waterEntryCount: waterResults.length,
+      weightEntryCount: weightResults.length
     };
   }
 };
 
-module.exports = { db, User, MoodEntry };
+module.exports = { db, User, BreathingProfile, MoodEntry };
