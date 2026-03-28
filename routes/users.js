@@ -7,6 +7,8 @@ router.use(authenticateToken);
 
 const BREATHING_MIN_SECONDS = 1;
 const BREATHING_MAX_SECONDS = 60;
+const BREATHING_MIN_CYCLES = 1;
+const BREATHING_MAX_CYCLES = 50;
 const BREATHING_MIN_AUDIO_LEVEL = 0;
 const BREATHING_MAX_AUDIO_LEVEL = 0.6;
 const BREATHING_COLOR_PALETTES = ['ocean', 'sunrise', 'forest', 'lavender', 'ember'];
@@ -29,6 +31,16 @@ const normalizeAudioLevel = (value) => {
 
   const clamped = Math.max(BREATHING_MIN_AUDIO_LEVEL, Math.min(BREATHING_MAX_AUDIO_LEVEL, parsed));
   return Number(clamped.toFixed(2));
+};
+
+const normalizeCycleCount = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+
+  const rounded = Math.round(parsed);
+  return Math.max(BREATHING_MIN_CYCLES, Math.min(BREATHING_MAX_CYCLES, rounded));
 };
 
 const normalizeProfileName = (value) => String(value || '').trim();
@@ -96,12 +108,14 @@ router.patch('/:id/preferences', requireSelf, async (req, res) => {
       breathing_inhale_seconds,
       breathing_hold_seconds,
       breathing_exhale_seconds,
+      breathing_cycle_count,
       breathing_audio_enabled,
       breathing_audio_level,
       breathing_color_palette,
       breathingInhaleSeconds,
       breathingHoldSeconds,
       breathingExhaleSeconds,
+      breathingCycleCount,
       breathingAudioEnabled,
       breathingAudioLevel,
       breathingColorPalette
@@ -116,6 +130,9 @@ router.patch('/:id/preferences', requireSelf, async (req, res) => {
     const exhale = normalizeSeconds(
       breathing_exhale_seconds !== undefined ? breathing_exhale_seconds : breathingExhaleSeconds
     );
+    const cycleCount = normalizeCycleCount(
+      breathing_cycle_count !== undefined ? breathing_cycle_count : breathingCycleCount
+    );
 
     const audioEnabledValue =
       breathing_audio_enabled !== undefined ? breathing_audio_enabled : breathingAudioEnabled;
@@ -129,6 +146,12 @@ router.patch('/:id/preferences', requireSelf, async (req, res) => {
     if (inhale === null || hold === null || exhale === null) {
       return res.status(400).json({
         error: `Breathing phase seconds must be numeric values between ${BREATHING_MIN_SECONDS} and ${BREATHING_MAX_SECONDS}`
+      });
+    }
+
+    if (cycleCount === null) {
+      return res.status(400).json({
+        error: `Breathing cycle count must be a numeric value between ${BREATHING_MIN_CYCLES} and ${BREATHING_MAX_CYCLES}`
       });
     }
 
@@ -152,6 +175,7 @@ router.patch('/:id/preferences', requireSelf, async (req, res) => {
       breathing_inhale_seconds: inhale,
       breathing_hold_seconds: hold,
       breathing_exhale_seconds: exhale,
+      breathing_cycle_count: cycleCount,
       breathing_audio_enabled: audioEnabledValue,
       breathing_audio_level: audioLevel,
       breathing_color_palette: colorPalette

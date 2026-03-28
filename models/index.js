@@ -11,6 +11,7 @@ const OPTIONAL_USER_COLUMNS = [
   'breathing_inhale_seconds',
   'breathing_hold_seconds',
   'breathing_exhale_seconds',
+  'breathing_cycle_count',
   'breathing_audio_enabled',
   'breathing_audio_level',
   'breathing_color_palette'
@@ -20,6 +21,7 @@ const OPTIONAL_SAFE_USER_COLUMNS = [
   'breathing_inhale_seconds',
   'breathing_hold_seconds',
   'breathing_exhale_seconds',
+  'breathing_cycle_count',
   'breathing_audio_enabled',
   'breathing_audio_level',
   'breathing_color_palette'
