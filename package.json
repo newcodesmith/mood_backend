@@ -7,7 +7,9 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "migrate": "knex migrate:latest",
-    "seed": "knex seed:run"
+    "seed": "knex seed:run",
+    "deploy:heroku": "git -C .. push --force heroku \"$(git -C .. subtree split --prefix backend HEAD)\":master",
+    "deploy:production": "npm run deploy:heroku && heroku run \"npm run migrate\" --app mood--backend"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
