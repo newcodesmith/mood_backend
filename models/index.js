@@ -184,6 +184,12 @@ const BreathingProfile = {
     return db('breathing_profiles')
       .where({ user_id: userId, id: profileId })
       .first();
+  },
+
+  deleteForUser: async (userId, profileId) => {
+    return db('breathing_profiles')
+      .where({ user_id: userId, id: profileId })
+      .del();
   }
 };
 

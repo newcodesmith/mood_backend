@@ -326,6 +326,20 @@ router.patch('/:id/breathing-profiles/:profileId', requireSelf, async (req, res)
   }
 });
 
+router.delete('/:id/breathing-profiles/:profileId', requireSelf, async (req, res) => {
+  try {
+    const existingProfile = await BreathingProfile.getByIdForUser(req.params.id, req.params.profileId);
+    if (!existingProfile) {
+      return res.status(404).json({ error: 'Breathing profile not found' });
+    }
+
+    await BreathingProfile.deleteForUser(req.params.id, req.params.profileId);
+    res.json({ message: 'Breathing profile deleted' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Delete user
 router.delete('/:id', requireSelf, async (req, res) => {
   try {
