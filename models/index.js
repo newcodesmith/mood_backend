@@ -14,7 +14,8 @@ const OPTIONAL_USER_COLUMNS = [
   'breathing_cycle_count',
   'breathing_audio_enabled',
   'breathing_audio_level',
-  'breathing_color_palette'
+  'breathing_color_palette',
+  'breathing_visual_shape'
 ];
 
 const OPTIONAL_SAFE_USER_COLUMNS = [
@@ -24,7 +25,8 @@ const OPTIONAL_SAFE_USER_COLUMNS = [
   'breathing_cycle_count',
   'breathing_audio_enabled',
   'breathing_audio_level',
-  'breathing_color_palette'
+  'breathing_color_palette',
+  'breathing_visual_shape'
 ];
 
 async function hasOptionalUserColumn(columnName) {

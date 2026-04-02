@@ -12,6 +12,7 @@ const BREATHING_MAX_CYCLES = 50;
 const BREATHING_MIN_AUDIO_LEVEL = 0;
 const BREATHING_MAX_AUDIO_LEVEL = 0.6;
 const BREATHING_COLOR_PALETTES = ['ocean', 'sunrise', 'forest', 'lavender', 'ember'];
+const BREATHING_VISUAL_SHAPES = ['orb', 'lotus', 'crystal', 'ripple'];
 
 const normalizeSeconds = (value) => {
   const parsed = Number(value);
@@ -112,13 +113,15 @@ router.patch('/:id/preferences', requireSelf, async (req, res) => {
       breathing_audio_enabled,
       breathing_audio_level,
       breathing_color_palette,
+      breathing_visual_shape,
       breathingInhaleSeconds,
       breathingHoldSeconds,
       breathingExhaleSeconds,
       breathingCycleCount,
       breathingAudioEnabled,
       breathingAudioLevel,
-      breathingColorPalette
+      breathingColorPalette,
+      breathingVisualShape
     } = req.body || {};
 
     const inhale = normalizeSeconds(
@@ -141,6 +144,9 @@ router.patch('/:id/preferences', requireSelf, async (req, res) => {
     const audioLevel = normalizeAudioLevel(audioLevelValue);
     const colorPalette = normalizeColorPalette(
       breathing_color_palette !== undefined ? breathing_color_palette : breathingColorPalette
+    );
+    const visualShape = normalizeColorPalette(
+      breathing_visual_shape !== undefined ? breathing_visual_shape : breathingVisualShape
     );
 
     if (inhale === null || hold === null || exhale === null) {
@@ -171,6 +177,12 @@ router.patch('/:id/preferences', requireSelf, async (req, res) => {
       });
     }
 
+    if (!BREATHING_VISUAL_SHAPES.includes(visualShape)) {
+      return res.status(400).json({
+        error: `Breathing visual shape must be one of: ${BREATHING_VISUAL_SHAPES.join(', ')}`
+      });
+    }
+
     const user = await User.update(req.params.id, {
       breathing_inhale_seconds: inhale,
       breathing_hold_seconds: hold,
@@ -178,7 +190,8 @@ router.patch('/:id/preferences', requireSelf, async (req, res) => {
       breathing_cycle_count: cycleCount,
       breathing_audio_enabled: audioEnabledValue,
       breathing_audio_level: audioLevel,
-      breathing_color_palette: colorPalette
+      breathing_color_palette: colorPalette,
+      breathing_visual_shape: visualShape
     });
 
     res.json(user);
