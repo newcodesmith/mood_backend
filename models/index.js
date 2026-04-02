@@ -2,7 +2,7 @@ const knex = require('knex');
 const config = require('../knexfile');
 
 const db = knex(config[process.env.NODE_ENV || 'development']);
-const baseSafeUserColumns = ['id', 'name', 'email', 'avatar', 'created_at', 'updated_at'];
+const baseSafeUserColumns = ['id', 'name', 'avatar', 'created_at', 'updated_at'];
 let hasThemePreferenceColumnCache;
 const optionalUserColumnsCache = {};
 
@@ -118,13 +118,13 @@ const User = {
     return db('users').select(safeUserColumns).where('id', id).first();
   },
 
-  getByEmail: async (email) => {
+  getByName: async (name) => {
     const safeUserColumns = await getSafeUserColumns();
-    return db('users').select(safeUserColumns).where('email', email).first();
+    return db('users').select(safeUserColumns).where('name', name).first();
   },
 
-  getByEmailWithSecret: async (email) => {
-    return db('users').where('email', email).first();
+  getByNameWithSecret: async (name) => {
+    return db('users').where('name', name).first();
   },
 
   getByIdWithSecret: async (id) => {

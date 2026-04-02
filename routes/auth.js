@@ -7,17 +7,9 @@ const { validatePassword } = require('../utils/password');
 
 const router = express.Router();
 
-function normalizeEmail(email) {
-  return String(email || '').trim().toLowerCase();
-}
-
-function isValidEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
 function signToken(user) {
   return jwt.sign(
-    { userId: user.id, email: user.email },
+    { userId: user.id },
     process.env.JWT_SECRET || 'dev-only-jwt-secret-change-me',
     { expiresIn: '7d' }
   );
@@ -25,15 +17,15 @@ function signToken(user) {
 
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password, avatar } = req.body;
-    const normalizedEmail = normalizeEmail(email);
+    const { name, password, avatar } = req.body;
+    const trimmedName = String(name || '').trim();
 
-    if (!name || !normalizedEmail || !password) {
-      return res.status(400).json({ error: 'Name, email, and password are required' });
+    if (!trimmedName || !password) {
+      return res.status(400).json({ error: 'Username and password are required' });
     }
 
-    if (!isValidEmail(normalizedEmail)) {
-      return res.status(400).json({ error: 'Email format is invalid' });
+    if (trimmedName.length < 2 || trimmedName.length > 50) {
+      return res.status(400).json({ error: 'Username must be between 2 and 50 characters' });
     }
 
     const passwordIssues = validatePassword(password);
@@ -41,15 +33,14 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Password validation failed', issues: passwordIssues });
     }
 
-    const existingUser = await User.getByEmail(normalizedEmail);
+    const existingUser = await User.getByName(trimmedName);
     if (existingUser) {
-      return res.status(409).json({ error: 'An account with this email already exists' });
+      return res.status(409).json({ error: 'That username is already taken' });
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
     const user = await User.create({
-      name: String(name).trim(),
-      email: normalizedEmail,
+      name: trimmedName,
       password_hash: passwordHash,
       avatar: avatar || null
     });
@@ -63,21 +54,21 @@ router.post('/register', async (req, res) => {
 
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
-    const normalizedEmail = normalizeEmail(email);
+    const { name, password } = req.body;
+    const trimmedName = String(name || '').trim();
 
-    if (!normalizedEmail || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
+    if (!trimmedName || !password) {
+      return res.status(400).json({ error: 'Username and password are required' });
     }
 
-    const userWithSecret = await User.getByEmailWithSecret(normalizedEmail);
+    const userWithSecret = await User.getByNameWithSecret(trimmedName);
     if (!userWithSecret || !userWithSecret.password_hash) {
-      return res.status(401).json({ error: 'Invalid email or password' });
+      return res.status(401).json({ error: 'Invalid username or password' });
     }
 
     const isMatch = await bcrypt.compare(password, userWithSecret.password_hash);
     if (!isMatch) {
-      return res.status(401).json({ error: 'Invalid email or password' });
+      return res.status(401).json({ error: 'Invalid username or password' });
     }
 
     const user = await User.getById(userWithSecret.id);
@@ -104,19 +95,19 @@ router.get('/me', authenticateToken, async (req, res) => {
 
 router.post('/forgot-password', async (req, res) => {
   try {
-    const { email } = req.body || {};
-    const normalizedEmail = normalizeEmail(email);
+    const { name } = req.body || {};
+    const trimmedName = String(name || '').trim();
 
-    if (!normalizedEmail || !isValidEmail(normalizedEmail)) {
-      return res.status(400).json({ error: 'A valid email address is required' });
+    if (!trimmedName) {
+      return res.status(400).json({ error: 'Username is required' });
     }
 
-    const user = await User.getByEmail(normalizedEmail);
+    const user = await User.getByName(trimmedName);
     if (!user) {
-      return res.status(404).json({ error: 'No account found with that email address.' });
+      return res.status(404).json({ error: 'No account found with that username.' });
     }
 
-    return res.json({ message: 'Email verified.' });
+    return res.json({ message: 'Username verified.' });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
@@ -124,11 +115,11 @@ router.post('/forgot-password', async (req, res) => {
 
 router.post('/reset-password', async (req, res) => {
   try {
-    const { email, newPassword, confirmPassword } = req.body || {};
-    const normalizedEmail = normalizeEmail(email);
+    const { name, newPassword, confirmPassword } = req.body || {};
+    const trimmedName = String(name || '').trim();
 
-    if (!normalizedEmail || !newPassword || !confirmPassword) {
-      return res.status(400).json({ error: 'Email, new password, and confirmation are required' });
+    if (!trimmedName || !newPassword || !confirmPassword) {
+      return res.status(400).json({ error: 'Username, new password, and confirmation are required' });
     }
 
     if (newPassword !== confirmPassword) {
@@ -140,9 +131,9 @@ router.post('/reset-password', async (req, res) => {
       return res.status(400).json({ error: 'Password validation failed', issues: passwordIssues });
     }
 
-    const user = await User.getByEmail(normalizedEmail);
+    const user = await User.getByName(trimmedName);
     if (!user) {
-      return res.status(404).json({ error: 'No account found with that email address.' });
+      return res.status(404).json({ error: 'No account found with that username.' });
     }
 
     const newPasswordHash = await bcrypt.hash(newPassword, 12);
