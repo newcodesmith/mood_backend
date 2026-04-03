@@ -84,16 +84,32 @@ router.post('/', async (req, res) => {
 // Update user
 router.put('/:id', requireSelf, async (req, res) => {
   try {
-    const { name, avatar, themePreference, theme_preference } = req.body;
-    if (!name) return res.status(400).json({ error: 'Name is required' });
+    const { avatar, themePreference, theme_preference, displayName, display_name } = req.body;
 
     const normalizedThemePreference = (themePreference || theme_preference || 'light').toString().toLowerCase();
     if (!['light', 'dark'].includes(normalizedThemePreference)) {
       return res.status(400).json({ error: 'Theme preference must be light or dark' });
     }
-    
+
+    const resolvedDisplayName = displayName !== undefined ? displayName : display_name;
+    if (resolvedDisplayName !== undefined && resolvedDisplayName !== null) {
+      const trimmed = String(resolvedDisplayName).trim();
+      if (trimmed.length > 0 && trimmed.length < 2) {
+        return res.status(400).json({ error: 'Display name must be at least 2 characters' });
+      }
+      if (trimmed.length > 50) {
+        return res.status(400).json({ error: 'Display name must be 50 characters or less' });
+      }
+    }
+
+    let normalizedDisplayName = undefined;
+    if (resolvedDisplayName !== undefined) {
+      const trimmed = resolvedDisplayName === null ? '' : String(resolvedDisplayName).trim();
+      normalizedDisplayName = trimmed.length > 0 ? trimmed : null;
+    }
+
     const user = await User.update(req.params.id, {
-      name,
+      ...(normalizedDisplayName !== undefined && { display_name: normalizedDisplayName }),
       avatar,
       theme_preference: normalizedThemePreference
     });

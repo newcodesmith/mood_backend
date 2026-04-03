@@ -2,7 +2,7 @@ const knex = require('knex');
 const config = require('../knexfile');
 
 const db = knex(config[process.env.NODE_ENV || 'development']);
-const baseSafeUserColumns = ['id', 'name', 'avatar', 'created_at', 'updated_at'];
+const baseSafeUserColumns = ['id', 'name', 'display_name', 'avatar', 'created_at', 'updated_at'];
 let hasThemePreferenceColumnCache;
 const optionalUserColumnsCache = {};
 
